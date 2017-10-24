@@ -1,0 +1,222 @@
+\documentclass{article}
+
+\usepackage{fullpage,rotating}
+
+\title{PRELIMINARY Pack 196 Popcorn Report}
+\author{Jarad Niemi}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\newpage
+
+<<options, results='hide', echo=FALSE, purl=FALSE>>=
+opts_chunk$set(fig.width=7, 
+               fig.height=5, 
+               out.width='.8\\linewidth', 
+               fig.align='center', 
+               size='tiny',
+               echo=FALSE)
+options(width=100)
+@
+
+<<libraries, echo=FALSE, message=FALSE, warning=FALSE>>=
+library("dplyr")
+library("xtable")
+@
+
+<<message=FALSE>>=
+cost <- 
+  readr::read_csv("popcorn_costs.csv") %>%
+  mutate(item = factor(item, levels = item))
+
+d <- readr::read_csv("popcorn.csv") %>%
+  filter(Timestamp != 'TOTALS') %>%
+  select(-Timestamp, -`Contact Number`, 
+         -starts_with("Total"), 
+         -starts_with("What prize"), 
+         -starts_with("Email")) %>%
+  tidyr::gather(item, count, -`Scout Name`, -`Current Den`) %>%
+  mutate(
+    item = gsub("Donation","Donation ($)", item),
+    item = factor(item, levels = cost$item)) %>%
+  left_join(cost, by="item") %>%
+  mutate(sales = count*cost,
+         sales = ifelse(grepl("Donation", item), count, sales),
+         count = ifelse(grepl("Donation", item), NA, count)) %>%
+  select(-cost)
+
+
+
+# # For inputting costs
+# d %>% 
+#   select(item) %>% 
+#   unique %>%
+#   mutate(cost=NA) %>% 
+#   readr::write_csv(path="popcorn_costs.csv")
+@
+
+\section*{Pack 196 Totals}
+
+\subsection*{Order}
+
+The table below should ensure that we have collected the correct amount of money
+and the correct amount of each item.
+
+<<results='asis'>>=
+sm <- d %>%
+  group_by(item) %>%
+  summarize(count = sum(count),
+            sales = sum(sales))  %>%
+  rbind(., data.frame(item = "Total ($)", 
+                      count = NA, 
+                      sales = sum(.$sales, na.rm = TRUE))) %>%
+  rename(`sales ($)` = sales)
+
+sm %>%
+  xtable(caption = "Pack 196 Total Order") %>%
+  print(include.rownames=FALSE, hline.after = c(-1,0,20,21))
+@
+
+
+The following pages have two tables for each Den. 
+The intent is that these tables will make sure the
+Den Leaders 
+\begin{itemize}
+\item have collected the correct amount of money from each Scout,
+\item have obtained the correct amount of each item at popcorn pickup, and
+\item distribute the correct amount of each item to each Scout.
+\end{itemize}
+For inventory management, I suggest the Den Leaders sign the appropriate table
+when they pickup the correct number of items at popcorn pickup and 
+the Scout guardian sign the appropriate page when they have received the 
+correct number of items from their Den Leader.
+
+
+<<>>=
+den_table <- function(den) {
+  sm <- d %>%
+    filter(`Current Den` == den) %>%
+    group_by(item) %>%
+    summarize(count = sum(count),
+              sales = sum(sales)) %>%
+    ungroup() %>%
+    rbind(., data.frame(item  = "Total ($)", 
+                        count = NA, 
+                        sales = sum(.$sales, na.rm=T))) %>%
+    mutate(count = ifelse(count == 0, "", count),
+           sales = ifelse(sales == 0, "", sales))
+  
+  sm %>%
+    rename(`sales ($)` = sales) %>%
+    xtable(caption = paste(den,"Totals"), align="cl|rr") %>%
+    print(include.rownames=FALSE, hline.after = c(-1,0,20,21))
+}
+
+scout_table <- function(den) {
+  sales <- d %>%
+    filter(`Current Den` == den) %>%
+    group_by(`Scout Name`) %>%
+    summarize(sales = sum(sales)) %>%
+    tidyr::spread(`Scout Name`, sales) %>%
+    mutate(item = "Total ($)")
+  
+  
+  sm <- d %>%
+    filter(`Current Den` == den) %>%
+    # group_by(`Scout Name`, item) %>%
+    # summarize(count = sum(count)) %>%
+    mutate(count = ifelse(grepl("Donation",item), sales, count),
+           count = ifelse(count == 0, "", count)) %>%
+    select(-sales, -`Current Den`) %>%
+    tidyr::spread(`Scout Name`, count) %>%
+    # filter(!grepl("Donation",item)) %>%
+    rbind(sales) 
+  
+  sm %>%
+    xtable(caption = paste(den, "Scout Totals"),
+           align = paste0("cl|",paste0(rep("r",ncol(sm)-1), collapse = ""))) %>%
+    print(include.rownames=FALSE,
+          hline.after = c(-1,0,18,20,21),
+          rotate.colnames = TRUE)
+}
+@
+
+\newpage
+\section*{Tiger}
+<<results='asis'>>=
+den_table("Tiger")
+@
+
+\newpage
+\subsection*{By scout}
+
+<<results='asis'>>=
+scout_table("Tiger")
+@
+
+
+
+\newpage
+\section*{Wolf}
+<<results='asis'>>=
+den_table("Wolf")
+@
+
+\newpage
+\subsection*{By scout}
+
+<<results='asis'>>=
+scout_table("Wolf")
+@
+
+
+
+\newpage
+\section*{Bear}
+<<results='asis'>>=
+den_table("Bear")
+@
+
+\newpage
+\subsection*{By scout}
+
+<<results='asis'>>=
+scout_table("Bear")
+@
+
+
+
+\newpage
+\section*{Webelo I}
+<<results='asis'>>=
+den_table("Webelo I")
+@
+
+\newpage
+\subsection*{By scout}
+
+<<results='asis'>>=
+scout_table("Webelo I")
+@
+
+
+
+\newpage
+\section*{Webelo 2}
+<<results='asis'>>=
+den_table("Webelo 2")
+@
+
+\newpage
+\subsection*{By scout}
+
+<<results='asis'>>=
+scout_table("Webelo 2")
+@
+
+
+
+
+\end{document}
