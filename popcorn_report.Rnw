@@ -1,8 +1,8 @@
 \documentclass{article}
 
-\usepackage{fullpage,rotating}
+\usepackage{fullpage,rotating,lscape}
 
-\title{PRELIMINARY Pack 196 Popcorn Report}
+\title{UPDATED PRELIMINARY Pack 196 Popcorn Report}
 \author{Jarad Niemi}
 \date{\today}
 
@@ -41,11 +41,41 @@ d <- readr::read_csv("popcorn.csv") %>%
   mutate(
     item = gsub("Donation","Donation ($)", item),
     item = factor(item, levels = cost$item)) %>%
-  left_join(cost, by="item") %>%
-  mutate(sales = count*cost,
-         sales = ifelse(grepl("Donation", item), count, sales),
-         count = ifelse(grepl("Donation", item), NA, count)) %>%
-  select(-cost)
+  left_join(cost %>% select(item,cost), by="item") %>%
+  
+  
+  mutate(
+    
+    # Fixing data entry errors --------------------------------------------------
+    
+    # Fix entry who entered amount rather than count
+    count = ifelse(`Scout Name` == "Johnson", count/cost, count),
+    
+    # Fix missing entry
+    count = ifelse(`Scout Name` == "McKeag, Maddox"  & item == "White Popping",
+                   1, count),
+    
+    # Fix entry for count rather than amount
+    count = ifelse(`Scout Name` == "Mellies, Oliver" & item == "Military Donation ($)",
+                   count*35, count),
+    count = ifelse(`Scout Name` == "Pendry, Adam" & item == "Military Donation ($)",
+                   count*35, count),
+    
+    sales = count*cost, 
+    
+    # Calculate sales ----------------------------------------------------------
+    # For Military donations inputted amount was sales ($)
+    count = ifelse(grepl("Military", item), count/cost, count),
+
+    # For Other count is actually sales, 
+    # for everything else sales = count*cost
+    sales = ifelse(grepl("Other", item), count, count*cost),
+    count = ifelse(grepl("Other", item), NA, count),
+    
+    count = as.integer(count),
+    sales = as.integer(sales)) %>%
+  
+  select(-cost) 
 
 
 
@@ -61,22 +91,54 @@ d <- readr::read_csv("popcorn.csv") %>%
 
 \subsection*{Order}
 
+<<other_donations>>=
+other_donations = d %>% 
+  filter(grepl("Other Donation", item)) %>%
+  summarize(total = sum(sales, na.rm = TRUE)) %>%
+  as.numeric
+
+total_sales = d %>% 
+  summarize(total = sum(sales, na.rm = TRUE)) %>%
+  as.numeric
+@
+
 The table below should ensure that we have collected the correct amount of money
 and the correct amount of each item.
+In addition, we have a total of \$\Sexpr{other_donations} in other donations,
+so the total collected should be \$\Sexpr{total_sales}.
+The following table can be used to fill out the Unit Packing Slip.
 
 <<results='asis'>>=
 sm <- d %>%
   group_by(item) %>%
   summarize(count = sum(count),
-            sales = sum(sales))  %>%
+            sales = sum(sales, na.rm=TRUE))  %>%
+  left_join(cost %>% select(item, containers_per_case),
+            by = "item") %>%
+  mutate(cases = floor(count / containers_per_case) %>% as.integer,
+         containers = count - cases*containers_per_case) %>%
+  select(-containers_per_case) %>%
+  filter(item != "Other Donation ($)") %>%
   rbind(., data.frame(item = "Total ($)", 
                       count = NA, 
-                      sales = sum(.$sales, na.rm = TRUE))) %>%
-  rename(`sales ($)` = sales)
+                      sales = sum(.$sales, na.rm = TRUE),
+                      cases = sum(.$cases, na.rm = TRUE),
+                      containers = sum(.$containers, na.rm = TRUE))) %>%
+  select(item, count, cases, containers, sales) 
 
 sm %>%
+  mutate(sales = paste0("$",sales),
+         count = ifelse(count == 0, NA, count),
+         cases = ifelse(cases == 0, NA, cases),
+         containers = ifelse(containers == 0, NA, containers)) %>%
+  
+  rename(Description = item,
+         `Containers Ordered` = count,
+         Cases = cases,
+         Containers = containers,
+         Retail = sales) %>%
   xtable(caption = "Pack 196 Total Order") %>%
-  print(include.rownames=FALSE, hline.after = c(-1,0,20,21))
+  print(include.rownames=FALSE, hline.after = c(-1,0,19,20))
 @
 
 
@@ -92,6 +154,34 @@ For inventory management, I suggest the Den Leaders sign the appropriate table
 when they pickup the correct number of items at popcorn pickup and 
 the Scout guardian sign the appropriate page when they have received the 
 correct number of items from their Den Leader.
+
+\newpage
+\begin{landscape}
+% \subsection*{All scouts}
+
+
+<<results='asis', size="tiny">>=
+sales <- d %>%
+  group_by(`Scout Name`) %>%
+  summarize(sales = sum(sales, na.rm=TRUE))
+  
+
+d %>%
+  mutate(count = ifelse(grepl("Donation", item), sales, count),
+         count = ifelse(count == 0, "", count)) %>%
+  select(-sales) %>%
+  # rbind(., data.frame(item = "Total ($)",
+  #                     count = sum(.$count, na.rm = TRUE),
+  #                     sales = sum(.$sales, na.rm = TRUE))) %>%
+  # rename(`sales ($)` = sales) %>%
+  tidyr::spread(item, count) %>%
+  left_join(sales, by = "Scout Name") %>%
+  arrange(`Current Den`, `Scout Name`) %>%
+  xtable(caption = "All scouts") %>%
+  print(include.rownames=FALSE,
+          rotate.colnames = TRUE)
+@
+\end{landscape}
 
 
 <<>>=
@@ -111,7 +201,7 @@ den_table <- function(den) {
   sm %>%
     rename(`sales ($)` = sales) %>%
     xtable(caption = paste(den,"Totals"), align="cl|rr") %>%
-    print(include.rownames=FALSE, hline.after = c(-1,0,20,21))
+    print(include.rownames=FALSE, hline.after = c(-1,0,18,20,21))
 }
 
 scout_table <- function(den) {
@@ -143,6 +233,8 @@ scout_table <- function(den) {
 }
 @
 
+
+
 \newpage
 \section*{Tiger}
 <<results='asis'>>=
@@ -150,7 +242,7 @@ den_table("Tiger")
 @
 
 \newpage
-\subsection*{By scout}
+\subsection*{Tiger scouts}
 
 <<results='asis'>>=
 scout_table("Tiger")
@@ -165,7 +257,7 @@ den_table("Wolf")
 @
 
 \newpage
-\subsection*{By scout}
+\subsection*{Wolf scouts}
 
 <<results='asis'>>=
 scout_table("Wolf")
@@ -180,7 +272,7 @@ den_table("Bear")
 @
 
 \newpage
-\subsection*{By scout}
+\subsection*{Bear scouts}
 
 <<results='asis'>>=
 scout_table("Bear")
@@ -195,7 +287,7 @@ den_table("Webelo I")
 @
 
 \newpage
-\subsection*{By scout}
+\subsection*{Webelo I scouts}
 
 <<results='asis'>>=
 scout_table("Webelo I")
@@ -210,7 +302,7 @@ den_table("Webelo 2")
 @
 
 \newpage
-\subsection*{By scout}
+\subsection*{Webelo 2 scouts}
 
 <<results='asis'>>=
 scout_table("Webelo 2")
