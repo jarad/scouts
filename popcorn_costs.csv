@@ -1,21 +1,21 @@
-item,cost
-S'mores,25
-Chocolate Covered Caramel,25
-Chocolate Toffee with Nuts,20
-Caramel with Nuts,25
-Caramel,10
-Caramel Hawkeye Jug,20
-Caramel Cyclone Jug,20
-Bade's Blend Jug,25
-Decorative Tin,40
-Yellow Cheddar Cheese,15
-White Cheddar Cheese,15
-Kettle Corn,22
-Butter Lite,22
-Movie Theater Butter,22
-Old Fashioned White,22
-White Popping,12
-Yellow Popping,12
-Trail Mix,20
-Military Donation ($),
-Other Donation ($),
+item,cost,containers_per_case
+S'mores,25,16
+Chocolate Covered Caramel,25,16
+Chocolate Toffee with Nuts,20,16
+Caramel with Nuts,25,12
+Caramel,10,12
+Caramel Hawkeye Jug,20,8
+Caramel Cyclone Jug,20,8
+Bade's Blend Jug,25,4
+Decorative Tin,40,1
+Yellow Cheddar Cheese,15,12
+White Cheddar Cheese,15,12
+Kettle Corn,22,1
+Butter Lite,22,1
+Movie Theater Butter,22,1
+Old Fashioned White,22,1
+White Popping,12,6
+Yellow Popping,12,6
+Trail Mix,20,12
+Military Donation ($),35,1
+Other Donation ($),,
