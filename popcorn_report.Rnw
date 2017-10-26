@@ -2,7 +2,7 @@
 
 \usepackage{fullpage,rotating,lscape}
 
-\title{UPDATED PRELIMINARY Pack 196 Popcorn Report}
+\title{FINAL Pack 196 Popcorn Report}
 \author{Jarad Niemi}
 \date{\today}
 
@@ -58,6 +58,14 @@ d <- readr::read_csv("popcorn.csv") %>%
     # Fix entry for count rather than amount
     count = ifelse(`Scout Name` == "Mellies, Oliver" & item == "Military Donation ($)",
                    count*35, count),
+    
+    # Change 1 Bade's Blend Jug to Caramel Cyclone Jug
+    count = ifelse(`Scout Name` == "Mellies, Oliver" & item == "Bade's Blend Jug",
+                   count-1, count),
+    count = ifelse(`Scout Name` == "Mellies, Oliver" & item == "Caramel Cyclone Jug",
+                   count+1, count),
+    
+    # Change military count into amount
     count = ifelse(`Scout Name` == "Pendry, Adam" & item == "Military Donation ($)",
                    count*35, count),
     
@@ -67,7 +75,7 @@ d <- readr::read_csv("popcorn.csv") %>%
     # For Military donations inputted amount was sales ($)
     count = ifelse(grepl("Military", item), count/cost, count),
 
-    # For Other count is actually sales, 
+    # For Other, count is actually sales, 
     # for everything else sales = count*cost
     sales = ifelse(grepl("Other", item), count, count*cost),
     count = ifelse(grepl("Other", item), NA, count),
@@ -208,7 +216,7 @@ scout_table <- function(den) {
   sales <- d %>%
     filter(`Current Den` == den) %>%
     group_by(`Scout Name`) %>%
-    summarize(sales = sum(sales)) %>%
+    summarize(sales = sum(sales, na.rm = TRUE)) %>%
     tidyr::spread(`Scout Name`, sales) %>%
     mutate(item = "Total ($)")
   
