@@ -2,13 +2,20 @@
 
 \usepackage{fullpage,rotating,lscape}
 
-\title{FINAL Pack 196 Popcorn Report}
+\title{TENTATIVE Pack 196 Popcorn Report}
 \author{Jarad Niemi}
 \date{\today}
 
 \begin{document}
 
 \maketitle
+
+Notes:
+\begin{itemize}
+\item My understanding is that Abraham Winters order in the google spreadsheet is correct.
+\item Awaiting entry of Show \& Sell sales to determine total sales.
+\end{itemize}
+
 \newpage
 
 <<options, results='hide', echo=FALSE, purl=FALSE>>=
@@ -31,107 +38,75 @@ cost <-
   readr::read_csv("popcorn_costs.csv") %>%
   mutate(item = factor(item, levels = item))
 
-d <- readr::read_csv("popcorn.csv") %>%
-  filter(Timestamp != 'TOTALS') %>%
-  select(-Timestamp, -`Contact Number`, 
-         -starts_with("Total"), 
-         -starts_with("What prize"), 
-         -starts_with("Email")) %>%
-  tidyr::gather(item, count, -`Scout Name`, -`Current Den`) %>%
-  mutate(
-    item = gsub("Donation","Donation ($)", item),
-    item = factor(item, levels = cost$item)) %>%
-  left_join(cost %>% select(item,cost), by="item") %>%
-  
-  
-  mutate(
-    
-    # Fixing data entry errors --------------------------------------------------
-    
-    # Fix entry who entered amount rather than count
-    count = ifelse(`Scout Name` == "Johnson", count/cost, count),
-    
-    # Fix missing entry
-    count = ifelse(`Scout Name` == "McKeag, Maddox"  & item == "White Popping",
-                   1, count),
-    
-    # Fix entry for count rather than amount
-    count = ifelse(`Scout Name` == "Mellies, Oliver" & item == "Military Donation ($)",
-                   count*35, count),
-    
-    # Change 1 Bade's Blend Jug to Caramel Cyclone Jug
-    count = ifelse(`Scout Name` == "Mellies, Oliver" & item == "Bade's Blend Jug",
-                   count-1, count),
-    count = ifelse(`Scout Name` == "Mellies, Oliver" & item == "Caramel Cyclone Jug",
-                   count+1, count),
-    
-    # Change military count into amount
-    count = ifelse(`Scout Name` == "Pendry, Adam" & item == "Military Donation ($)",
-                   count*35, count),
-    
-    sales = count*cost, 
-    
-    # Calculate sales ----------------------------------------------------------
-    # For Military donations inputted amount was sales ($)
-    count = ifelse(grepl("Military", item), count/cost, count),
 
-    # For Other, count is actually sales, 
-    # for everything else sales = count*cost
-    sales = ifelse(grepl("Other", item), count, count*cost),
-    count = ifelse(grepl("Other", item), NA, count),
+
+
+d <- readr::read_csv("popcorn.csv") %>%
+  
+  filter(!is.na(Timestamp)) %>%
+  
+  mutate(scout = paste0(`Scout Last Name`, ", ", `Scout First Name`),
+         den = `Current Den`) %>%
+  
+  select(c("scout","den", as.character(cost$item))) %>%
+  
+  tidyr::gather(item, count, -scout, -den) %>%
+  
+  mutate(item = factor(item, levels = cost$item),
+         den = factor(den, levels = c("Tiger","Wolf","Bear","Webelo I","Webelo 2"))) %>%
+  
+  left_join(cost, by="item") %>%
+  
+  
+  mutate(sales = count*cost,
+    
+    # Donations are entered as sales and not counts
+    sales = ifelse(grepl("Donations", item), count, sales),
+    count = ifelse(grepl("Donations", item), NA, count),
     
     count = as.integer(count),
     sales = as.integer(sales)) %>%
   
   select(-cost) 
-
-
-
-# # For inputting costs
-# d %>% 
-#   select(item) %>% 
-#   unique %>%
-#   mutate(cost=NA) %>% 
-#   readr::write_csv(path="popcorn_costs.csv")
 @
 
 \section*{Pack 196 Totals}
 
 \subsection*{Order}
 
-<<other_donations>>=
-other_donations = d %>% 
-  filter(grepl("Other Donation", item)) %>%
-  summarize(total = sum(sales, na.rm = TRUE)) %>%
-  as.numeric
-
-total_sales = d %>% 
-  summarize(total = sum(sales, na.rm = TRUE)) %>%
-  as.numeric
-@
-
-The table below should ensure that we have collected the correct amount of money
-and the correct amount of each item.
-In addition, we have a total of \$\Sexpr{other_donations} in other donations,
-so the total collected should be \$\Sexpr{total_sales}.
-The following table can be used to fill out the Unit Packing Slip.
+% # <<donations>>=
+% # donations = d %>% 
+% #   filter(grepl("Donations", item)) %>%
+% #   group_by(item) %>%
+% #   summarize(total = sum(sales, na.rm = TRUE)) %>%
+% #   as.numeric
+% # 
+% # total_sales = d %>% 
+% #   summarize(total = sum(sales, na.rm = TRUE)) %>%
+% #   as.numeric
+% # @
+% # 
+% # The table below should ensure that we have collected the correct amount of money
+% # and the correct amount of each item.
+% # In addition, 
+% # we have a total of \$\Sexpr{donations$total[donations$item == "Military Donations"]} in military donations,
+% # \$\Sexpr{donations$total[donations$item == "Pack Donations"]} in pack donations for a 
+% # total sales of \$\Sexpr{total_sales}.
+% # The following table can be used to fill out the Unit Packing Slip
+% # (if we don't do it by scout).
 
 <<results='asis'>>=
 sm <- d %>%
   group_by(item) %>%
   summarize(count = sum(count),
             sales = sum(sales, na.rm=TRUE))  %>%
-  left_join(cost %>% select(item, containers_per_case),
-            by = "item") %>%
+  left_join(cost %>% select(item, containers_per_case), by = "item") %>%
   mutate(cases = floor(count / containers_per_case) %>% as.integer,
          containers = count - cases*containers_per_case) %>%
   select(-containers_per_case) %>%
-  filter(item != "Other Donation ($)") %>%
-  rbind(., data.frame(item = "Total ($)", 
-                      count = NA, 
-                      sales = sum(.$sales, na.rm = TRUE),
-                      cases = sum(.$cases, na.rm = TRUE),
-                      containers = sum(.$containers, na.rm = TRUE))) %>%
+  # filter(!grepl("Donations", item)) %>%
+  rbind(., data.frame(item = "Total", count = NA, cases = NA, containers = NA, 
+                      sales = sum(.$sales, na.rm = TRUE))) %>%
   select(item, count, cases, containers, sales) 
 
 sm %>%
@@ -140,13 +115,13 @@ sm %>%
          cases = ifelse(cases == 0, NA, cases),
          containers = ifelse(containers == 0, NA, containers)) %>%
   
-  rename(Description = item,
-         `Containers Ordered` = count,
-         Cases = cases,
-         Containers = containers,
-         Retail = sales) %>%
+  # rename(Description = item,
+  #        `Containers Ordered` = count,
+  #        Cases = cases,
+  #        Containers = containers,
+  #        Retail = sales) %>%
   xtable(caption = "Pack 196 Total Order") %>%
-  print(include.rownames=FALSE, hline.after = c(-1,0,19,20))
+  print(include.rownames=FALSE, hline.after = c(-1,0,15,17,18))
 @
 
 
@@ -170,21 +145,21 @@ correct number of items from their Den Leader.
 
 <<results='asis', size="tiny">>=
 sales <- d %>%
-  group_by(`Scout Name`) %>%
+  group_by(scout) %>%
   summarize(sales = sum(sales, na.rm=TRUE))
   
 
 d %>%
   mutate(count = ifelse(grepl("Donation", item), sales, count),
          count = ifelse(count == 0, "", count)) %>%
-  select(-sales) %>%
+  select(-sales, -containers_per_case) %>%
   # rbind(., data.frame(item = "Total ($)",
   #                     count = sum(.$count, na.rm = TRUE),
   #                     sales = sum(.$sales, na.rm = TRUE))) %>%
   # rename(`sales ($)` = sales) %>%
   tidyr::spread(item, count) %>%
-  left_join(sales, by = "Scout Name") %>%
-  arrange(`Current Den`, `Scout Name`) %>%
+  left_join(sales, by = "scout") %>%
+  arrange(den, scout) %>%
   xtable(caption = "All scouts") %>%
   print(include.rownames=FALSE,
           rotate.colnames = TRUE)
@@ -193,50 +168,50 @@ d %>%
 
 
 <<>>=
-den_table <- function(den) {
+den_table <- function(den_input) {
   sm <- d %>%
-    filter(`Current Den` == den) %>%
+    filter(den == den_input) %>%
     group_by(item) %>%
     summarize(count = sum(count),
               sales = sum(sales)) %>%
     ungroup() %>%
-    rbind(., data.frame(item  = "Total ($)", 
+    rbind(., data.frame(item  = "Total", 
                         count = NA, 
-                        sales = sum(.$sales, na.rm=T))) %>%
+                        sales = sum(.$sales, na.rm=T))) %>% 
     mutate(count = ifelse(count == 0, "", count),
            sales = ifelse(sales == 0, "", sales))
   
   sm %>%
     rename(`sales ($)` = sales) %>%
-    xtable(caption = paste(den,"Totals"), align="cl|rr") %>%
-    print(include.rownames=FALSE, hline.after = c(-1,0,18,20,21))
+    xtable(caption = paste(den_input,"Totals"), align="cl|rr") %>%
+    print(include.rownames=FALSE, hline.after = c(-1,0,15,17,18))
 }
 
-scout_table <- function(den) {
+scout_table <- function(den_input) {
   sales <- d %>%
-    filter(`Current Den` == den) %>%
-    group_by(`Scout Name`) %>%
+    filter(den == den_input) %>%
+    group_by(scout) %>%
     summarize(sales = sum(sales, na.rm = TRUE)) %>%
-    tidyr::spread(`Scout Name`, sales) %>%
+    tidyr::spread(scout, sales) %>%
     mutate(item = "Total ($)")
   
   
   sm <- d %>%
-    filter(`Current Den` == den) %>%
-    # group_by(`Scout Name`, item) %>%
+    filter(den == den_input) %>%
+    # group_by(scout, item) %>%
     # summarize(count = sum(count)) %>%
     mutate(count = ifelse(grepl("Donation",item), sales, count),
            count = ifelse(count == 0, "", count)) %>%
-    select(-sales, -`Current Den`) %>%
-    tidyr::spread(`Scout Name`, count) %>%
+    select(-sales, -den, -containers_per_case) %>%
+    tidyr::spread(scout, count) %>%
     # filter(!grepl("Donation",item)) %>%
     rbind(sales) 
   
   sm %>%
-    xtable(caption = paste(den, "Scout Totals"),
+    xtable(caption = paste(den_input, "Scout Totals"),
            align = paste0("cl|",paste0(rep("r",ncol(sm)-1), collapse = ""))) %>%
     print(include.rownames=FALSE,
-          hline.after = c(-1,0,18,20,21),
+          hline.after = c(-1,0,15,17,18),
           rotate.colnames = TRUE)
 }
 @
